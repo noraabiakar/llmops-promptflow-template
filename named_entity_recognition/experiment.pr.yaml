@@ -5,4 +5,6 @@ datasets:
   source: data/data.jsonl
   description: "This dataset is for pr validation only."
 
+evaluators:
+
 # In this case the overlay is simple, we just swap the dataset source, all other parameters are read from the base (experiment.yaml)
