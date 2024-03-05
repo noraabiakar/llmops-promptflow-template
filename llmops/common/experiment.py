@@ -98,14 +98,9 @@ class Evaluator:
         self.path = path or os.path.join("flows", name)
         self.datasets = datasets
 
-    def find_dataset_mapping(self, dataset_source: str) -> Optional[MappedDataset]:
-        ref_dataset = None
+    def find_dataset_with_reference(self, dataset_name: str) -> Optional[MappedDataset]:
         for dataset in self.datasets:
-            if dataset.dataset.source == dataset_source:
-                ref_dataset = dataset
-                break
-        for dataset in self.datasets:
-            if dataset.dataset.reference == ref_dataset:
+            if dataset.dataset.reference == dataset_name:
                 return dataset
         return None
 
@@ -224,26 +219,27 @@ def _raise_error_if_missing_keys(keys: List[str], config: dict, message: str):
             raise ValueError(f"{message}: {key}")
 
 
+def _raise_error_if_existing_keys(keys: List[str], config: dict, message: str):
+    for key in keys:
+        if key in config:
+            raise ValueError(f"{message}: {key}")
+
+
 def _create_datasets_and_default_mappings(
-    raw_datasets: list[dict],
-    raw_evaluators: list[dict],
+    raw: list[dict],
 ) -> Tuple[dict[str, Dataset], list[MappedDataset]]:
     """
-    Create datasets and mapped datasets from list of dataset and evaluator dictionaries.
+    Create datasets and mapped datasets from list of dictionaries.
 
-    :param raw_datasets: List of dictionaries containing the description of the experiment datasets.
-    :type raw_datasets: list[dict]
-    :param raw_evaluators: List of dictionaries containing the description of the experiment evaluators.
-    :type raw_evaluators: list[dict]
+    :param raw: List of dictionaries containing the description of the experiment datasets.
+    :type raw: list[dict]
     :return: Tuple of dictionary from dataset name to dataset and list of mapped datasets
     :rtype: Tuple[dict[str, Dataset], list[MappedDataset]]
     """
-    # full list of datasets and mappings
     datasets: dict[str, Dataset] = {}
     mappings: list[MappedDataset] = []
-
-    # Datasets in raw_datasets are "standard" datasets, used to run the standard flow.
-    for ds in raw_datasets:
+    for ds in raw:
+        # Raise error if expected dataset configuration missing
         _raise_error_if_missing_keys(
             ["name", "source", "mappings"],
             ds,
@@ -255,68 +251,73 @@ def _create_datasets_and_default_mappings(
         datasets[dataset.name] = dataset
         mappings.append(dataset.with_mappings(ds["mappings"]))
 
-    # Datasets in raw_evaluators are "evaluator" datasets, used to run the evaluation flows.
-    # Evaluators can have new dataset definitions or just link to an existing "standard" dataset.
-    # The new dataset definitions must contain a "reference" to another "standard" reference-free dataset.
-    # After validation, the new evaluation datasets get added to the full list of datasets and mappings.
-    eval_datasets: dict[str, Dataset] = {}
-    eval_mappings: list[MappedDataset] = []
-    for eval in raw_evaluators:
+    return datasets, mappings
+
+
+def _create_eval_datasets_and_default_mappings(
+    raw: list[dict], existing_datasets: dict[str, Dataset]
+) -> list[MappedDataset]:
+    """
+    Create mapped datasets from list of evaluation datasets.
+
+    :param raw: List of dictionaries containing the description of the evaluation datasets.
+    :type raw: list[dict]
+    :param datasets: Dictionary from dataset name to Dataset object.
+    :type datasets: dict[str, Dataset]
+    :return: List of mapped datasets
+    :rtype: list[MappedDataset]
+    """
+    mappings: list[MappedDataset] = []
+
+    # The datasets here are "evaluation" datasets, used to run the evaluation flows.
+    # The datasets are either a direct reference to an existing dataset (in practice this means
+    # that the the evaluation flow and standard flow are running on the same dataset);
+    # or they are new - in which case the new dataset they must still "reference" an existing
+    # dataset (in practice  this means that the evaluation flow and standard flow are running on
+    # different but related datasets.)
+
+    for ds in raw:
+        # Check that the common keys are available
         _raise_error_if_missing_keys(
-            ["datasets"],
-            eval,
-            message=f"Evaluator '{eval.get("name")}' missing parameter",
+            ["name", "mappings"],
+            ds,
+            message=f"Dataset '{ds.get("name")}' config missing parameter",
         )
-        for ds in eval["datasets"]:
-            _raise_error_if_missing_keys(
-                ["name", "mappings"],
+        ds_name = ds["name"]
+
+        # Create or get dataset
+        dataset: Dataset = None
+        if ds_name in existing_datasets:
+            _raise_error_if_existing_keys(
+                ["source", "reference"],
                 ds,
-                message=f"Dataset '{ds.get("name")}' config missing parameter",
+                message=f"Dataset '{ds_name}' config is referencing an existing dataset so it doesn't support parameter",
+            )
+            dataset = existing_datasets.get(ds_name)
+        else:
+            _raise_error_if_missing_keys(
+                ["source", "reference"],
+                ds,
+                message=f"Dataset '{ds_name}' config missing parameter",
             )
             dataset = Dataset(
-                ds["name"], ds.get("source"), ds.get("description"), ds.get("reference")
+                ds_name, ds.get("source"), ds.get("description"), ds.get("reference")
             )
 
-            # Validate evaluator dataset
-            if dataset.name in datasets:
-                # Evaluator dataset is already defined, this means it is linking to an existing "standard" dataset.
-                # Raise error if the source or reference are redefined.
-                if dataset.source or dataset.reference:
-                    raise ValueError(
-                        f"Cannot set 'source' or 'reference' parameter on a pre-defined dataset '{dataset.name}'"
-                    )
-                # Skip this dataset
-                continue
-            if not dataset.reference:
-                # If the evaluator dataset doesn't already exist, it must have a reference
-                raise ValueError(
-                    f"Evaluator dataset '{dataset.name}' must have a reference, tying it to a predefined dataset"
-                )
-            if not dataset.source:
-                # If the evaluator dataset doesn't already exist, it must have a source
-                raise ValueError(
-                    f"Evaluator dataset '{dataset.name}' must have a source because it is not tied to a predefined dataset"
-                )
-            if dataset.reference not in datasets:
+            # Validate that the reference dataset exists
+            if dataset.reference not in existing_datasets:
                 raise ValueError(
                     f"Referenced dataset '{dataset.reference}' not defined"
                 )
 
-            # Add eval dataset to list of all datasets and mappings
-            eval_datasets[dataset.name] = dataset
-            eval_mappings.append(dataset.with_mappings(ds["mappings"]))
+        # Collect mappings
+        mappings.append(dataset.with_mappings(ds["mappings"]))
 
-    # Append eval datasets and mappings to full list of datasets and mappings
-    datasets.update(eval_datasets)
-    mappings.extend(eval_mappings)
-
-    return datasets, mappings
+    return mappings
 
 
 def _create_evaluators(
-    raw_evaluators: list[dict],
-    mapped_datasets: list[MappedDataset],
-    base_path: Optional[str],
+    raw_evaluators: list[dict], datasets: dict[str, Dataset], base_path: Optional[str]
 ) -> list[Evaluator]:
     """
     Create evaluators from a list of dictionaries describing the raw evaluators, a dictionary of existing datasets,
@@ -340,24 +341,10 @@ def _create_evaluators(
             raw_evaluator,
             message=f"Evaluator '{raw_evaluator.get("name")}' config missing parameter",
         )
-        evaluator_datasets: list[MappedDataset] = []
+        evaluator_datasets = _create_eval_datasets_and_default_mappings(
+            raw_evaluator["datasets"], datasets
+        )
         eval_name = raw_evaluator["name"]
-        for ds in raw_evaluator["datasets"]:
-            # Raise error for missing evaluator dataset parameters
-            _raise_error_if_missing_keys(
-                ["name", "mappings"],
-                ds,
-                message=f"Evaluator dataset '{ds.get("name")}' config missing parameter",
-            )
-            dataset_name = ds["name"]
-            # Raise error if expected evaluator dataset not found in the list of experiment datasets
-            dataset = datasets.get(dataset_name)
-            if dataset is None:
-                raise ValueError(
-                    f"Dataset {dataset_name} not found in evaluator {eval_name}"
-                )
-            # Use experiment dataset with evaluator mappings
-            evaluator_datasets.append(dataset.with_mappings(ds["mappings"]))
         flow = raw_evaluator.get("flow") or eval_name
         flow_path = _resolve_flow_dir(base_path, flow)
         evaluator = Evaluator(
