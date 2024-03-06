@@ -598,3 +598,45 @@ def test_apply_overlay(
     assert dev_experiment.flow == expected_flow
     assert dev_experiment.datasets == []
     assert dev_experiment.evaluators == []
+
+
+def test_load_experiment(prepare_expected_experiment):
+    # Prepare inputs
+    base_path = str(RESOURCE_PATH)
+
+    # Prepare expected outputs
+    expected_name = "exp"
+    expected_flow = "exp_flow"
+
+    expected_mapped_datasets, expected_evaluators = prepare_expected_experiment
+
+    # Test
+    experiment = load_experiment("experiment.yaml", base_path)
+
+    # Check outputs
+    assert experiment.base_path == base_path
+    assert experiment.name == expected_name
+    assert experiment.flow == expected_flow
+    assert experiment.datasets == expected_mapped_datasets
+    assert experiment.evaluators == expected_evaluators
+
+
+def test_load_experiment_with_overlay(prepare_expected_overlay):
+    # Prepare inputs
+    base_path = str(RESOURCE_PATH)
+
+    # Prepare expected outputs
+    expected_name = "exp"
+    expected_flow = "exp_flow"
+
+    expected_mapped_datasets, expected_evaluators = prepare_expected_overlay
+
+    # Test
+    experiment = load_experiment("experiment.yaml", base_path, "dev0")
+
+    # Check outputs
+    assert experiment.base_path == base_path
+    assert experiment.name == expected_name
+    assert experiment.flow == expected_flow
+    assert experiment.datasets == expected_mapped_datasets
+    assert experiment.evaluators == expected_evaluators
