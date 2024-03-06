@@ -336,6 +336,8 @@ def test_create_evaluators():
     # Check outputs
     evaluators = _create_evaluators(raw_evaluators, existing_datasets, base_path)
     assert evaluators == expected_evaluators
+
+    # TODO
     # assert evaluators[0].find_dataset_with_reference(g_name) is None
 
     # Test without base_path

@@ -188,6 +188,11 @@ class Experiment:
         # Load flow data
         flow_path = _resolve_flow_dir(self.base_path, self.flow)
         flow_file_path = os.path.join(flow_path, _FLOW_DAG_FILENAME)
+        if not os.path.exists(flow_file_path):
+            raise ValueError(
+                f"Could not open prompt flow file in path {flow_file_path}"
+            )
+
         yaml_data: dict
         with open(flow_file_path, "r") as yaml_file:
             yaml_data = yaml.safe_load(yaml_file)
