@@ -4,6 +4,7 @@ flow: exp_flow
 datasets:
 - name: ds1
   source: ds1_source
+  description: ds1_description
   mappings:
     ds1_input: "ds1_mapping"
 - name: ds2
@@ -18,7 +19,10 @@ evaluators:
     mappings:
       ds1_input: "ds1_mapping"
       ds1_extra: "ds1_extra_mapping"
-  - name: ds2
+  - name: ds3
+    source: ds3_source
+    description: ds3_description
+    reference: ds2
     mappings:
       ds2_extra: "ds2_extra_mapping"
 - name: eval2
@@ -26,13 +30,7 @@ evaluators:
   - name: ds2
     mappings:
       ds2_input: "ds2_diff_mapping"
-
-metrics:
-- name: metric1
-  minimum_value: 0.76
-- name: metric2
-  minimum_value: 0.53
-
-environment:
-  name: my-prompflow-runtime
-  version: 42
+  - name: ds4
+    source: ds4_source
+    reference: ds1
+    mappings: 

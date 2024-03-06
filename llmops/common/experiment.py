@@ -253,7 +253,7 @@ def _create_datasets_and_default_mappings(
             ds["name"], ds["source"], ds.get("description"), ds.get("reference")
         )
         datasets[dataset.name] = dataset
-        mappings.append(dataset.with_mappings(ds["mappings"]))
+        mappings.append(dataset.with_mappings(ds["mappings"] or {}))
 
     return datasets, mappings
 
@@ -315,7 +315,7 @@ def _create_eval_datasets_and_default_mappings(
                 )
 
         # Collect mappings
-        mappings.append(dataset.with_mappings(ds["mappings"]))
+        mappings.append(dataset.with_mappings(ds["mappings"] or {}))
 
     return mappings
 
@@ -414,22 +414,32 @@ def _apply_overlay(
     with open(overlay_file_path, "r") as yaml_file:
         overlay_config = yaml.safe_load(yaml_file)
 
+    experiment_dataset_map: dict[str, Dataset] = {
+        ds.dataset.name: ds.dataset for ds in experiment.datasets
+    }
     # Read env raw datasets and create env datasets and mappings
-    overlay_raw_datasets: list[dict] = overlay_config.get("datasets")
-    if overlay_raw_datasets:
-        overlay_datasets, overlay_mappings = _create_datasets_and_default_mappings(
-            overlay_raw_datasets
-        )
-        # Override experiment datasets
-        experiment.datasets = overlay_mappings
+    if "datasets" in overlay_config:
+        overlay_raw_datasets: list[dict] = overlay_config["datasets"]
+        if overlay_raw_datasets:
+            overlay_datasets, overlay_mappings = _create_datasets_and_default_mappings(
+                overlay_raw_datasets
+            )
+            # Override experiment datasets
+            experiment.datasets = overlay_mappings
+            experiment_dataset_map = overlay_datasets
+        else:
+            experiment.datasets = []
 
     # Read env raw evaluators and create env evaluators
-    overlay_raw_evaluators: list[dict] = overlay_config["evaluators"]
 
-    if overlay_raw_evaluators is not None and len(overlay_raw_evaluators) > 0:
-        experiment.evaluators = _create_evaluators(
-            overlay_raw_evaluators, overlay_datasets, base_path
-        )
+    if "evaluators" in overlay_config:
+        overlay_raw_evaluators: list[dict] = overlay_config["evaluators"]
+        if overlay_raw_evaluators:
+            experiment.evaluators = _create_evaluators(
+                overlay_raw_evaluators, experiment_dataset_map, base_path
+            )
+        else:
+            experiment.evaluators = []
 
 
 def load_experiment(

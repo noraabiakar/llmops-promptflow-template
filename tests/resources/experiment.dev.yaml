@@ -1,6 +1,0 @@
-datasets:
-- name: ds1
-  source: "overridden_ds1_source"
-
-environment:
-  version: 51

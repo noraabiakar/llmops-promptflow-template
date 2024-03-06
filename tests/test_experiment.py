@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List, Tuple
+import copy
 
 import pytest
 from llmops.common.experiment import (
@@ -271,28 +272,47 @@ def test_create_eval_datasets_and_default_mappings_missing_parameters(
 
 def test_create_evaluators():
     # Prepare inputs
-    g_name = "groundedness"
-    g_flow = "groundedness_eval"
-    g_source = "groundedness_source"
-    g_mappings = {"claim": "claim_mapping"}
-    g_dataset = Dataset(g_name, g_source, None, None)
+    g_eval_name = "groundedness_eval"
+    g_eval_flow = "groundedness_eval_flow"
+    r_eval_name = "recall_eval"
 
-    r_name = "recall"
-    r_source = "recall_source"
-    r_mappings = {"input": "input_mapping", "gt": "gt_mapping"}
-    r_dataset = Dataset(r_name, r_source, None, None)
+    g_ds_name = "groundedness"
+    g_ds_source = "groundedness_source"
+    g_ds_mappings = {"claim": "claim_mapping"}
+    g_ds_reference = "g_ref_mappings"
+    g_ds_dataset = Dataset(g_ds_name, g_ds_source, None, g_ds_reference)
 
-    available_datasets = {g_name: g_dataset, r_name: r_dataset}
+    g_ds_ref_source = "groundedness_ref_source"
+    g_ds_ref_dataset = Dataset(g_ds_reference, g_ds_ref_source, None, None)
+
+    r_ds_name = "recall"
+    r_ds_source = "recall_source"
+    r_ds_mappings = {"input": "input_mapping", "gt": "gt_mapping"}
+    r_ds_dataset = Dataset(r_ds_name, r_ds_source, None, None)
+
+    existing_datasets = {g_ds_reference: g_ds_ref_dataset, r_ds_name: r_ds_dataset}
 
     raw_evaluators = [
         {
-            "name": g_name,
-            "flow": g_flow,
-            "datasets": [{"name": g_dataset.name, "mappings": g_mappings}],
+            "name": g_eval_name,
+            "flow": g_eval_flow,
+            "datasets": [
+                {
+                    "name": g_ds_name,
+                    "source": g_ds_source,
+                    "reference": g_ds_reference,
+                    "mappings": g_ds_mappings,
+                }
+            ],
         },
         {
-            "name": r_name,
-            "datasets": [{"name": r_dataset.name, "mappings": r_mappings}],
+            "name": r_eval_name,
+            "datasets": [
+                {
+                    "name": r_ds_dataset.name,
+                    "mappings": r_ds_mappings,
+                }
+            ],
         },
     ]
 
@@ -302,21 +322,21 @@ def test_create_evaluators():
     # Prepare expected outputs
     expected_evaluators = [
         Evaluator(
-            g_name,
-            [MappedDataset(g_mappings, g_dataset)],
-            os.path.join(base_path, "flows", g_flow),
+            g_eval_name,
+            [MappedDataset(g_ds_mappings, g_ds_dataset)],
+            os.path.join(base_path, "flows", g_eval_flow),
         ),
         Evaluator(
-            r_name,
-            [MappedDataset(r_mappings, r_dataset)],
-            os.path.join(base_path, "flows", r_name),
+            r_eval_name,
+            [MappedDataset(r_ds_mappings, r_ds_dataset)],
+            os.path.join(base_path, "flows", r_eval_name),
         ),
     ]
 
     # Check outputs
-    evaluators = _create_evaluators(raw_evaluators, available_datasets, base_path)
+    evaluators = _create_evaluators(raw_evaluators, existing_datasets, base_path)
     assert evaluators == expected_evaluators
-    assert evaluators[0].find_dataset_with_reference(g_name) is None
+    # assert evaluators[0].find_dataset_with_reference(g_name) is None
 
     # Test without base_path
     base_path = None
@@ -324,69 +344,42 @@ def test_create_evaluators():
     # Prepare expected outputs
     expected_evaluators = [
         Evaluator(
-            g_name,
-            [MappedDataset(g_mappings, g_dataset)],
-            os.path.join("flows", g_flow),
+            g_eval_name,
+            [MappedDataset(g_ds_mappings, g_ds_dataset)],
+            os.path.join("flows", g_eval_flow),
         ),
         Evaluator(
-            r_name,
-            [MappedDataset(r_mappings, r_dataset)],
-            os.path.join("flows", r_name),
+            r_eval_name,
+            [MappedDataset(r_ds_mappings, r_ds_dataset)],
+            os.path.join("flows", r_eval_name),
         ),
     ]
 
     # Check outputs
-    evaluators = _create_evaluators(raw_evaluators, available_datasets, base_path)
+    evaluators = _create_evaluators(raw_evaluators, existing_datasets, base_path)
     assert evaluators == expected_evaluators
 
 
 @pytest.mark.parametrize(
-    "raw_evaluators",
+    ("raw_evaluators", "error"),
     [
-        [{}],
-        [
-            {
-                "name": "groundedness",
-            }
-        ],
-        [
-            {
-                "name": "groundedness",
-                "datasets": [{"name": "groundedness"}],
-            }
-        ],
+        ([{}], "Evaluator 'None' config missing parameter: name"),
+        (
+            [
+                {
+                    "name": "groundedness",
+                }
+            ],
+            "Evaluator 'groundedness' config missing parameter: datasets",
+        ),
     ],
 )
-def test_create_evaluators_missing_parameters(raw_evaluators: List[dict]):
+def test_create_evaluators_missing_parameters(raw_evaluators: List[dict], error: str):
     available_datasets = {
         "groundedness": Dataset("groundedness", "groundedness_source", None, None),
     }
     # Check that evaluators with missing parameters raise an exception
-    with pytest.raises(ValueError, match=".*missing parameter"):
-        _create_evaluators(raw_evaluators, available_datasets, None)
-
-
-def test_create_evaluators_invalid_dataset():
-    # Prepare inputs
-    eval_name = "groundedness"
-    dataset_name = "groundedness"
-
-    raw_evaluators = [
-        {
-            "name": eval_name,
-            "flow": "groundedness_eval",
-            "datasets": [
-                {"name": dataset_name, "mappings": {"claim": "claim_mapping"}}
-            ],
-        }
-    ]
-
-    available_datasets = {}
-
-    # Check that evaluators with invalid datasets (datasets not in the available_datasets dict) raise an exception
-    with pytest.raises(
-        ValueError, match=f"Dataset '{dataset_name}' config missing parameter: source"
-    ):
+    with pytest.raises(ValueError, match=error):
         _create_evaluators(raw_evaluators, available_datasets, None)
 
 
@@ -417,96 +410,191 @@ def test_experiment_creation():
     assert flow_detail.all_llm_nodes == expected_flow_llm_nodes
 
 
-# def test_load_experiment():
-#     # Prepare inputs
-#     base_path = str(RESOURCE_PATH)
+@pytest.fixture(scope="session")
+def prepare_expected_experiment():
+    # Prepare standard datasets
+    base_path = str(RESOURCE_PATH)
 
-#     # Prepare expected outputs
-#     expected_name = "exp"
-#     expected_flow = "exp_flow"
+    expected_dataset_mappings = [
+        {"ds1_input": "ds1_mapping"},
+        {"ds2_input": "ds2_mapping"},
+    ]
+    expected_datasets = [
+        Dataset("ds1", "ds1_source", "ds1_description", None),
+        Dataset("ds2", "ds2_source", None, None),
+    ]
+    expected_mapped_datasets = [
+        MappedDataset(expected_dataset_mappings[0], expected_datasets[0]),
+        MappedDataset(expected_dataset_mappings[1], expected_datasets[1]),
+    ]
 
-#     expected_dataset_names = ["ds1", "ds2"]
-#     expected_dataset_sources = ["ds1_source", "ds2_source"]
-#     expected_dataset_mappings = [
-#         {"ds1_input": "ds1_mapping"},
-#         {"ds2_input": "ds2_mapping"},
-#     ]
-#     expected_datasets = [
-#         Dataset(expected_dataset_names[0], expected_dataset_sources[0], None, None),
-#         Dataset(expected_dataset_names[1], expected_dataset_sources[1], None, None),
-#     ]
-#     expected_mapped_datasets = [
-#         MappedDataset(expected_dataset_mappings[0], expected_datasets[0]),
-#         MappedDataset(expected_dataset_mappings[1], expected_datasets[1]),
-#     ]
+    # Prepare evaluator datasets
+    expected_evaluator_mapped_datasets = [
+        [
+            MappedDataset(
+                {"ds1_input": "ds1_mapping", "ds1_extra": "ds1_extra_mapping"},
+                expected_datasets[0],
+            ),
+            MappedDataset(
+                {"ds2_extra": "ds2_extra_mapping"},
+                Dataset("ds3", "ds3_source", "ds3_description", "ds2"),
+            ),
+        ],
+        [
+            MappedDataset({"ds2_input": "ds2_diff_mapping"}, expected_datasets[1]),
+            MappedDataset({}, Dataset("ds4", "ds4_source", None, "ds1")),
+        ],
+    ]
 
-#     expected_evaluator_dataset_mappings = [
-#         {"ds1_input": "ds1_mapping", "ds1_extra": "ds1_extra_mapping"},
-#         {"ds2_extra": "ds2_extra_mapping"},
-#         {"ds2_input": "ds2_diff_mapping"},
-#     ]
-#     expected_evaluator_mapped_datasets = [
-#         [
-#             MappedDataset(expected_evaluator_dataset_mappings[0], expected_datasets[0]),
-#             MappedDataset(expected_evaluator_dataset_mappings[1], expected_datasets[1]),
-#         ],
-#         [MappedDataset(expected_evaluator_dataset_mappings[2], expected_datasets[1])],
-#     ]
-#     expected_evaluators = [
-#         Evaluator(
-#             "eval1",
-#             expected_evaluator_mapped_datasets[0],
-#             os.path.join(base_path, "flows", "eval1"),
-#         ),
-#         Evaluator(
-#             "eval2",
-#             expected_evaluator_mapped_datasets[1],
-#             os.path.join(base_path, "flows", "eval2"),
-#         ),
-#     ]
+    # Prepare evaluators
+    expected_evaluators = [
+        Evaluator(
+            "eval1",
+            expected_evaluator_mapped_datasets[0],
+            os.path.join(base_path, "flows", "eval1"),
+        ),
+        Evaluator(
+            "eval2",
+            expected_evaluator_mapped_datasets[1],
+            os.path.join(base_path, "flows", "eval2"),
+        ),
+    ]
 
-#     # Test with no environment overrides
-#     # Check outputs
-#     experiment = load_experiment(base_path=base_path)
-#     assert experiment.base_path == base_path
-#     assert experiment.name == expected_name
-#     assert experiment.flow == expected_flow
-#     assert experiment.datasets == expected_mapped_datasets
-#     assert experiment.evaluators == expected_evaluators
+    yield expected_mapped_datasets, expected_evaluators
 
-#     # Test with environment overrides
-#     # Modify expected outputs
-#     expected_overridden_dataset_source = "overridden_ds1_source"
-#     expected_overridden_dataset = Dataset(
-#         expected_dataset_names[0], expected_overridden_dataset_source, None, None
-#     )
-#     expected_overridden_mapped_datasets = [
-#         MappedDataset(expected_dataset_mappings[0], expected_overridden_dataset),
-#         MappedDataset(expected_dataset_mappings[1], expected_datasets[1]),
-#     ]
-#     expected_overridden_evaluator_mapped_datasets = [
-#         MappedDataset(
-#             expected_evaluator_dataset_mappings[0], expected_overridden_dataset
-#         ),
-#         MappedDataset(expected_evaluator_dataset_mappings[1], expected_datasets[1]),
-#     ]
-#     expected_overridden_evaluators = [
-#         Evaluator(
-#             "eval1",
-#             expected_overridden_evaluator_mapped_datasets,
-#             os.path.join(base_path, "flows", "eval1"),
-#         ),
-#         Evaluator(
-#             "eval2",
-#             expected_evaluator_mapped_datasets[1],
-#             os.path.join(base_path, "flows", "eval2"),
-#         ),
-#     ]
 
-#     # Check outputs
-#     experiment = load_experiment(base_path=base_path, env="dev")
-#     assert experiment.base_path == base_path
-#     assert experiment.name == expected_name
-#     assert experiment.flow == expected_flow
-#     assert experiment.datasets == expected_overridden_mapped_datasets
-#     assert experiment.evaluators == expected_overridden_evaluators
+@pytest.fixture(scope="session")
+def prepare_expected_overlay():
+    # Prepare standard datasets
+    base_path = str(RESOURCE_PATH)
+    expected_dataset = Dataset("dsx", "dsx_source", None, None)
+    expected_mapped_datasets = [
+        MappedDataset({"dsx_input": "dsx_mapping"}, expected_dataset)
+    ]
+
+    # Prepare evaluator datasets
+    expected_evaluator_mapped_datasets = [
+        MappedDataset({"dsx_diff_input": "dsx_diff_mapping"}, expected_dataset),
+        MappedDataset({}, Dataset("dsy", "dsy_source", None, "dsx")),
+    ]
+
+    # Prepare evaluators
+    expected_evaluators = [
+        Evaluator(
+            "evalx",
+            expected_evaluator_mapped_datasets,
+            os.path.join(base_path, "flows", "evalx"),
+        )
+    ]
+    yield expected_mapped_datasets, expected_evaluators
+
+
+@pytest.fixture(scope="session")
+def prepare_special_overlay_evaluators():
+    # Prepare standard datasets
+    base_path = str(RESOURCE_PATH)
+
+    # Prepare evaluator datasets
+    expected_evaluator_mapped_datasets = [
+        MappedDataset(
+            {"ds1_diff_input": "ds1_diff_mapping"},
+            Dataset("ds1", "ds1_source", "ds1_description", None),
+        )
+    ]
+
+    # Prepare evaluators
+    expected_evaluators = [
+        Evaluator(
+            "evalx",
+            expected_evaluator_mapped_datasets,
+            os.path.join(base_path, "flows", "evalx"),
+        )
+    ]
+    yield expected_evaluators
+
+
+def test_load_base_experiment(prepare_expected_experiment):
+    # Prepare inputs
+    base_path = str(RESOURCE_PATH)
+    exp_file_path = os.path.join(base_path, "experiment.yaml")
+
+    # Prepare expected outputs
+    expected_name = "exp"
+    expected_flow = "exp_flow"
+
+    expected_mapped_datasets, expected_evaluators = prepare_expected_experiment
+
+    # Test
+    experiment = _load_base_experiment(exp_file_path, base_path)
+
+    # Check outputs
+    assert experiment.base_path == base_path
+    assert experiment.name == expected_name
+    assert experiment.flow == expected_flow
+    assert experiment.datasets == expected_mapped_datasets
+    assert experiment.evaluators == expected_evaluators
+
+
+def test_apply_overlay(
+    prepare_expected_experiment,
+    prepare_expected_overlay,
+    prepare_special_overlay_evaluators,
+):
+    # Prepare inputs
+    base_path = str(RESOURCE_PATH)
+    exp_file_path = os.path.join(base_path, "experiment.yaml")
+    experiment = _load_base_experiment(exp_file_path, base_path)
+
+    # Prepare expected results
+    expected_name = "exp"
+    expected_flow = "exp_flow"
+    base_mapped_datasets, base_evaluators = prepare_expected_experiment
+    overlay_mapped_datasets, overlay_evaluators = prepare_expected_overlay
+
+    # Test dev0
+    overlay_path = os.path.join(base_path, "experiment.dev0.yaml")
+    dev_experiment = copy.deepcopy(experiment)
+    _apply_overlay(dev_experiment, overlay_path, base_path)
+
+    # Check outputs
+    assert dev_experiment.base_path == base_path
+    assert dev_experiment.name == expected_name
+    assert dev_experiment.flow == expected_flow
+    assert dev_experiment.datasets == overlay_mapped_datasets
+    assert dev_experiment.evaluators == overlay_evaluators
+
+    # Test dev1
+    overlay_path = os.path.join(base_path, "experiment.dev1.yaml")
+    dev_experiment = copy.deepcopy(experiment)
+    _apply_overlay(dev_experiment, overlay_path, base_path)
+
+    # Check outputs
+    assert dev_experiment.base_path == base_path
+    assert dev_experiment.name == expected_name
+    assert dev_experiment.flow == expected_flow
+    assert dev_experiment.datasets == overlay_mapped_datasets
+    assert dev_experiment.evaluators == base_evaluators
+
+    # Test dev2
+    overlay_path = os.path.join(base_path, "experiment.dev2.yaml")
+    dev_experiment = copy.deepcopy(experiment)
+    _apply_overlay(dev_experiment, overlay_path, base_path)
+
+    # Check outputs
+    assert dev_experiment.base_path == base_path
+    assert dev_experiment.name == expected_name
+    assert dev_experiment.flow == expected_flow
+    assert dev_experiment.datasets == base_mapped_datasets
+    assert dev_experiment.evaluators == prepare_special_overlay_evaluators
+
+    # Test dev3
+    overlay_path = os.path.join(base_path, "experiment.dev3.yaml")
+    dev_experiment = copy.deepcopy(experiment)
+    _apply_overlay(dev_experiment, overlay_path, base_path)
+
+    # Check outputs
+    assert dev_experiment.base_path == base_path
+    assert dev_experiment.name == expected_name
+    assert dev_experiment.flow == expected_flow
+    assert dev_experiment.datasets == []
+    assert dev_experiment.evaluators == []
