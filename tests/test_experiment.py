@@ -29,18 +29,24 @@ def check_lists_equal(actual: List[Any], expected: List[Any]):
 def test_create_datasets_and_default_mappings():
     # Prepare inputs
     g_name = "groundedness"
-    g_source = "groundedness_source"
+    g_source = "azureml:groundedness:1"
     g_mappings = {"claim": "claim_mapping"}
     g_dataset = Dataset(g_name, g_source, None, None)
 
     r_name = "recall"
     r_source = "recall_source"
+    r_description = "recall_description"
     r_mappings = {"input": "input_mapping", "gt": "gt_mapping"}
-    r_dataset = Dataset(r_name, r_source, None, None)
+    r_dataset = Dataset(r_name, r_source, r_description, None)
 
     raw_datasets = [
         {"name": g_name, "source": g_source, "mappings": g_mappings},
-        {"name": r_name, "source": r_source, "mappings": r_mappings},
+        {
+            "name": r_name,
+            "source": r_source,
+            "description": r_description,
+            "mappings": r_mappings,
+        },
     ]
 
     # Prepare expected outputs
@@ -55,30 +61,212 @@ def test_create_datasets_and_default_mappings():
     assert datasets == expected_datasets
     check_lists_equal(mapped_datasets, expected_mapped_datasets)
 
+    assert datasets[g_name].is_remote()
+    assert not datasets[g_name].is_eval()
+    assert not datasets[r_name].is_remote()
+    assert not datasets[r_name].is_eval()
+
 
 @pytest.mark.parametrize(
-    "raw_datasets",
+    ("raw_datasets", "error"),
     [
-        [{}],
-        [
-            {
-                "name": "groundedness",
-            }
-        ],
-        [
-            {
-                "name": "groundedness",
-                "source": "groundedness_source",
-            }
-        ],
+        ([{}], "Dataset 'None' config missing parameter: name"),
+        (
+            [
+                {
+                    "name": "groundedness",
+                }
+            ],
+            "Dataset 'groundedness' config missing parameter: source",
+        ),
+        (
+            [
+                {
+                    "name": "groundedness",
+                    "source": "groundedness_source",
+                }
+            ],
+            "Dataset 'groundedness' config missing parameter: mappings",
+        ),
+        (
+            [
+                {
+                    "name": "groundedness",
+                    "source": "groundedness_source",
+                    "mappings": [],
+                    "reference": "recall",
+                }
+            ],
+            "Unexpected parameter found in dataset 'groundedness' description: reference",
+        ),
     ],
 )
 def test_create_datasets_and_default_mappings_missing_parameters(
-    raw_datasets: List[dict],
+    raw_datasets: List[dict], error: str
 ):
     # Check that datasets with missing parameters raise an exception
-    with pytest.raises(ValueError, match="Dataset (.*?) config missing parameter"):
+    with pytest.raises(ValueError, match=error):
         _create_datasets_and_default_mappings(raw_datasets)
+
+
+def test_create_eval_datasets_and_default_mappings():
+    # Prepare inputs
+
+    # Evaluation datasets
+    g_name = "groundedness"
+    g_source = "azureml:groundedness:1"
+    g_reference = "groundedness_ref"
+    g_mappings = {"claim": "claim_mapping"}
+    g_dataset = Dataset(g_name, g_source, None, g_reference)
+
+    r_name = "recall"
+    r_source = "recall_source"
+    r_description = "recall_description"
+    r_reference = "recall_ref"
+    r_mappings = {"input": "input_mapping", "gt": "gt_mapping"}
+    r_dataset = Dataset(r_name, r_source, r_description, r_reference)
+
+    a_name = "accuracy"
+    a_source = "accuracy_source"
+    a_mappings = {"text": "text_mapping"}
+    a_dataset = Dataset(a_name, a_source, None, None)
+
+    # Reference datasets
+    g_ref_source = "groundedness_ref_source"
+    g_ref_dataset = Dataset(g_reference, g_ref_source, None, None)
+
+    r_ref_source = "recall_ref_source"
+    r_ref_dataset = Dataset(r_reference, r_ref_source, None, None)
+
+    existing_datasets = {
+        g_reference: g_ref_dataset,
+        r_reference: r_ref_dataset,
+        a_name: a_dataset,
+    }
+
+    raw_eval_datasets = [
+        {
+            "name": g_name,
+            "source": g_source,
+            "reference": g_reference,
+            "mappings": g_mappings,
+        },
+        {
+            "name": r_name,
+            "source": r_source,
+            "description": r_description,
+            "reference": r_reference,
+            "mappings": r_mappings,
+        },
+        {
+            "name": a_name,
+            "mappings": a_mappings,
+        },
+    ]
+
+    # Prepare expected outputs
+    expected_mapped_datasets = [
+        MappedDataset(g_mappings, g_dataset),
+        MappedDataset(r_mappings, r_dataset),
+        MappedDataset(a_mappings, a_dataset),
+    ]
+
+    # Check outputs
+    mapped_datasets = _create_eval_datasets_and_default_mappings(
+        raw_eval_datasets, existing_datasets
+    )
+    check_lists_equal(mapped_datasets, expected_mapped_datasets)
+
+    assert mapped_datasets[0].dataset.is_remote()
+    assert mapped_datasets[0].dataset.is_eval()
+
+    assert not mapped_datasets[1].dataset.is_remote()
+    assert mapped_datasets[1].dataset.is_eval()
+
+    assert not mapped_datasets[2].dataset.is_remote()
+    assert not mapped_datasets[2].dataset.is_eval()
+
+
+@pytest.mark.parametrize(
+    ("raw_datasets", "datasets", "error"),
+    [
+        ([{}], {}, "Dataset 'None' config missing parameter: name"),
+        (
+            [{"name": "groundedness"}],
+            {},
+            "Dataset 'groundedness' config missing parameter: mappings",
+        ),
+        (
+            [
+                {
+                    "name": "groundedness",
+                    "mappings": {},
+                }
+            ],
+            {},
+            "Dataset 'groundedness' config missing parameter: source",
+        ),
+        (
+            [
+                {
+                    "name": "groundedness",
+                    "source": "groundedness_source",
+                    "mappings": {},
+                }
+            ],
+            {},
+            "Dataset 'groundedness' config missing parameter: reference",
+        ),
+        (
+            [
+                {
+                    "name": "groundedness",
+                    "source": "groundedness_source_2",
+                    "mappings": {},
+                }
+            ],
+            {
+                "groundedness": Dataset(
+                    "groundedness", "groundedness_source", None, None
+                )
+            },
+            "Dataset 'groundedness' config is referencing an existing dataset so it doesn't support parameter: source",
+        ),
+        (
+            [
+                {
+                    "name": "groundedness",
+                    "reference": "groundedness_ref",
+                    "mappings": {},
+                }
+            ],
+            {
+                "groundedness": Dataset(
+                    "groundedness", "groundedness_source", None, None
+                )
+            },
+            "Dataset 'groundedness' config is referencing an existing dataset so it doesn't support parameter: reference",
+        ),
+        (
+            [
+                {
+                    "name": "groundedness",
+                    "source": "groundedness_source",
+                    "reference": "groundedness_ref",
+                    "mappings": {},
+                }
+            ],
+            {},
+            "Referenced dataset 'groundedness_ref' not defined",
+        ),
+    ],
+)
+def test_create_eval_datasets_and_default_mappings_missing_parameters(
+    raw_datasets: List[dict], datasets: dict[str:Dataset], error: str
+):
+    # Check that datasets with missing parameters raise an exception
+    with pytest.raises(ValueError, match=error):
+        _create_eval_datasets_and_default_mappings(raw_datasets, datasets)
 
 
 def test_create_evaluators():

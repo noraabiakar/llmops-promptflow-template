@@ -30,17 +30,15 @@ class Dataset:
         self.source = source
         self.description = description
         self.reference = reference
-        if self.source.startswith("azureml:") and description:
-            raise ValueError(
-                f"In dataset '{name}' definition, `description` parameter only required for local data source,"
-                f"not Azure ML data source '{source}'"
-            )
 
     def with_mappings(self, mappings: dict[str, str]) -> "MappedDataset":
         return MappedDataset(mappings, self)
 
     def is_eval(self):
         return self.reference is not None
+
+    def is_remote(self):
+        return self.source.startswith("azureml:")
 
     # Define equality operation
     def __eq__(self, other):
@@ -244,6 +242,12 @@ def _create_datasets_and_default_mappings(
             ["name", "source", "mappings"],
             ds,
             message=f"Dataset '{ds.get('name')}' config missing parameter",
+        )
+        # Raise error if unexpected dataset configuration found
+        _raise_error_if_existing_keys(
+            ["reference"],
+            ds,
+            message=f"Unexpected parameter found in dataset '{ds.get('name')}' description",
         )
         dataset = Dataset(
             ds["name"], ds["source"], ds.get("description"), ds.get("reference")
