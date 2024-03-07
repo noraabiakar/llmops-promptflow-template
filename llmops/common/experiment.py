@@ -30,6 +30,7 @@ class Dataset:
         self.source = source
         self.description = description
         self.reference = reference
+        self.remote_source = self.source.startswith("azureml:")
 
     def with_mappings(self, mappings: dict[str, str]) -> "MappedDataset":
         return MappedDataset(mappings, self)
@@ -37,8 +38,15 @@ class Dataset:
     def is_eval(self):
         return self.reference is not None
 
-    def is_remote(self):
-        return self.source.startswith("azureml:")
+    def get_remote_name(self):
+        if self.remote_source:
+            return self.source
+        return f"azureml:{self.name}:latest"
+
+    def get_local_source(self):
+        if self.remote_source:
+            return None
+        return self.source
 
     # Define equality operation
     def __eq__(self, other):
