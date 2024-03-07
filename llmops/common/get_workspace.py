@@ -43,7 +43,7 @@ def get_workspace(
         config = ExperimentCloudConfig(
             subscription_id, resource_group_name, workspace_name
         )
-        logger.info(f"Getting access to {workspace_name} workspace.")
+        logger.info(f"Getting access to {config.workspace_name} workspace.")
         client = MLClient(
             DefaultAzureCredential(),
             subscription_id=config.subscription_id,
@@ -52,7 +52,7 @@ def get_workspace(
         )
 
         workspace = client.workspaces.get(workspace_name)
-        logger.info(f"Reference to {workspace_name} has been obtained.")
+        logger.info(f"Reference to {workspace.name} has been obtained.")
         return workspace
     except Exception as ex:
         logger.info("Oops! invalid credentials.. Try again...")
