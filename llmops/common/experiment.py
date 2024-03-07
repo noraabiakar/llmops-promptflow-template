@@ -5,6 +5,7 @@ import yaml
 
 _FLOW_DAG_FILENAME = "flow.dag.yaml"
 _DEFAULT_FLOWS_DIR = "flows"
+_DEFAULT_DATA_DIR = "data"
 
 
 class Dataset:
@@ -43,10 +44,22 @@ class Dataset:
             return self.source
         return f"azureml:{self.name}:latest"
 
-    def get_local_source(self):
+    # def _resolve_flow_dir(base_path: Optional[str], flow: str) -> str:
+    #     # Check if the flow path can be deducted from base path
+    #
+    #     if os.path.isfile(os.path.join(safe_base_path, flow, _FLOW_DAG_FILENAME)):
+    #         return os.path.abspath(os.path.join(safe_base_path, flow))
+
+    #     return os.path.join(safe_base_path, _DEFAULT_FLOWS_DIR, flow)
+
+    def get_local_source(self, base_path: Optional[str] = None):
         if self.remote_source:
             return None
-        return self.source
+        safe_base_path = base_path or ""
+        data_path = os.path.join(safe_base_path, self.source)
+        if os.path.exists(data_path):
+            return os.path.abspath(data_path)
+        return os.path.join(safe_base_path, _DEFAULT_DATA_DIR, self.source)
 
     # Define equality operation
     def __eq__(self, other):

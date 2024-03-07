@@ -15,7 +15,6 @@ for execution or deployment.
 
 import argparse
 import hashlib
-import json
 from azure.ai.ml import MLClient
 from azure.ai.ml.entities import Data
 from azure.ai.ml.constants import AssetTypes
@@ -53,7 +52,6 @@ def register_data_asset(
     subscription_id: Optional[str],
     env_name: Optional[str],
 ):
-    environment_name = env_name
     config = ExperimentCloudConfig(subscription_id=subscription_id, env_name=env_name)
     experiment = load_experiment(
         filename=exp_filename, base_path=base_path, env=config.environment_name
@@ -65,49 +63,44 @@ def register_data_asset(
         config.workspace_name,
     )
 
-    # TODO, check source of dataset when creating Dataset?
+    # Get all used datasets
+    all_datasets = {ds.dataset.name: ds.dataset for ds in experiment.datasets}
 
-    data_config = json.load(config_file)
+    for evaluator in experiment.evaluators:
+        all_datasets.update({ds.dataset.name: ds.dataset for ds in evaluator.datasets})
 
-    for elem in data_config["datasets"]:
-        if "DATA_PURPOSE" in elem and "ENV_NAME" in elem:
-            if (
-                data_purpose == elem["DATA_PURPOSE"]
-                and environment_name == elem["ENV_NAME"]
-            ):
-                data_path = f"{args.flow_to_execute}/{elem['DATA_PATH']}"
-                dataset_desc = elem["DATASET_DESC"]
-                dataset_name = elem["DATASET_NAME"]
+    # Register local dataset as remote datasets in Azure ML
+    for ds in all_datasets.values():
+        local_data_path = ds.get_local_source(base_path=base_path)
+        if local_data_path:
+            logger.info(f"Registering dataset: {ds.name}")
 
-                data_hash = generate_file_hash(data_path)
-                print("Hash of the folder:", data_hash)
+            data_hash = generate_file_hash(local_data_path)
+            logger.info(f"Hash of the folder: {data_hash}")
 
-                aml_dataset = Data(
-                    path=data_path,
-                    type=AssetTypes.URI_FILE,
-                    description=dataset_desc,
-                    name=dataset_name,
-                    tags={"data_hash": data_hash},
-                )
+            aml_dataset = Data(
+                path=local_data_path,
+                type=AssetTypes.URI_FILE,
+                description=ds.description,
+                name=ds.name,
+                tags={"data_hash": data_hash},
+            )
 
-                try:
-                    data_info = ml_client.data.get(name=dataset_name, label="latest")
-
-                    m_hash = dict(data_info.tags).get("data_hash")
-                    if m_hash is not None:
-                        if m_hash != data_hash:
-                            ml_client.data.create_or_update(aml_dataset)
-                    else:
+            try:
+                data_info = ml_client.data.get(name=ds.name, label="latest")
+                m_hash = dict(data_info.tags).get("data_hash")
+                if m_hash is not None:
+                    if m_hash != data_hash:
                         ml_client.data.create_or_update(aml_dataset)
-                except Exception:
+                else:
                     ml_client.data.create_or_update(aml_dataset)
+            except Exception:
+                ml_client.data.create_or_update(aml_dataset)
 
-                aml_dataset_unlabeled = ml_client.data.get(
-                    name=dataset_name, label="latest"
-                )
+            aml_dataset = ml_client.data.get(name=ds.name, label="latest")
 
-                logger.info(aml_dataset_unlabeled.version)
-                logger.info(aml_dataset_unlabeled.id)
+            logger.info(aml_dataset.version)
+            logger.info(aml_dataset.id)
 
 
 def main():
@@ -140,7 +133,7 @@ def main():
 
     args = parser.parse_args()
 
-    register_data_asset(args.file, args.base_path, args.subscription_id, args.env_name)
+    register_data_asset(args.base_path, args.file, args.subscription_id, args.env_name)
 
 
 if __name__ == "__main__":

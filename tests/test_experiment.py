@@ -67,7 +67,7 @@ def test_create_datasets_and_default_mappings():
     assert datasets[g_name].get_remote_name() == g_source
 
     assert not datasets[r_name].is_eval()
-    assert datasets[r_name].get_local_source() == r_source
+    assert datasets[r_name].get_local_source() == os.path.join("data", r_source)
     assert datasets[r_name].get_remote_name() == f"azureml:{r_name}:latest"
 
 
@@ -187,11 +187,15 @@ def test_create_eval_datasets_and_default_mappings():
 
     assert mapped_datasets[1].dataset.is_eval()
     assert mapped_datasets[1].dataset.get_remote_name() == f"azureml:{r_name}:latest"
-    assert mapped_datasets[1].dataset.get_local_source() == r_source
+    assert mapped_datasets[1].dataset.get_local_source() == os.path.join(
+        "data", r_source
+    )
 
     assert not mapped_datasets[2].dataset.is_eval()
     assert mapped_datasets[2].dataset.get_remote_name() == f"azureml:{a_name}:latest"
-    assert mapped_datasets[2].dataset.get_local_source() == a_source
+    assert mapped_datasets[2].dataset.get_local_source(
+        base_path="path"
+    ) == os.path.join("path", "data", a_source)
 
 
 @pytest.mark.parametrize(
