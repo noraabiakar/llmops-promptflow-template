@@ -56,9 +56,7 @@ jobs:
             --base_path "named_entity_recognition" \
             --file "experiment-postprod.yaml" \
             --env_name "postprodeval" \
-            --output_file run_id.txt \
-            --save_output \
-            --save_metric
+            --output_file run_id.txt
 
       - name: Archive CSV
         uses: actions/upload-artifact@v3
