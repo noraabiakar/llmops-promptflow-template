@@ -39,3 +39,5 @@ stages:
       deployment_type: ${{ lower(parameters.deployment_type) }}
       connection_details: '$(COMMON_DEV_CONNECTIONS)'
       registry_details: '$(DOCKER_IMAGE_REGISTRY)'
+      RESOURCE_GROUP_NAME: $(RESOURCE_GROUP_NAME)
+      WORKSPACE_NAME: $(WORKSPACE_NAME)
