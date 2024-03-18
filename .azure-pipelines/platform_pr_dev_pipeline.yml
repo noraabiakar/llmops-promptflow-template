@@ -34,8 +34,6 @@ stages:
 
         - template: templates/configure_azureml_agent.yml
 
-        - script: echo $RESOURCE_GROUP_NAME
-        
         #=====================================
         # Registers experiment dataset in Azure ML as Data Asset
         # Reads appropriate field values from data_config.json based on environment and data purpose
