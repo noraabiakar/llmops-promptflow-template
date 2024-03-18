@@ -42,10 +42,6 @@ runs:
 
     - name: Assign Azure resource permissions
       shell: bash
-      env:
-        RESOURCE_GROUP_NAME: ${{ vars.RESOURCE_GROUP_NAME }}
-        WORKSPACE_NAME: ${{ vars.WORKSPACE_NAME }}
-        KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
       run: |
         echo $KEY_VAULT_NAME
         echo $RESOURCE_GROUP_NAME
