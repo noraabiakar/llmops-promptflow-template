@@ -32,5 +32,5 @@ stages:
     parameters:
       exec_environment: ${{ parameters.env_name }}
       use_case_base_path: ${{ parameters.use_case_base_path }}
-      RESOURCE_GROUP_NAME: '$(RESOURCE_GROUP_NAME)'
-      WORKSPACE_NAME: '$(WORKSPACE_NAME)'
+      RESOURCE_GROUP_NAME: $(RESOURCE_GROUP_NAME)
+      WORKSPACE_NAME: $(WORKSPACE_NAME)
