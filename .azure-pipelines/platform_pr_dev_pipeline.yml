@@ -34,7 +34,7 @@ stages:
 
         - template: templates/configure_azureml_agent.yml
 
-        - script: echo ${{ parameters.WORKSPACE_NAME }}
+        - script: echo $WORKSPACE_NAME
         
         #=====================================
         # Registers experiment dataset in Azure ML as Data Asset
