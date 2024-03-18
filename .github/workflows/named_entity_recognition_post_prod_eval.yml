@@ -15,6 +15,9 @@ on:
 jobs:
   post_production_evaluation:
     runs-on: ubuntu-latest
+    env:
+      RESOURCE_GROUP_NAME: ${{ vars.RESOURCE_GROUP_NAME }}
+      WORKSPACE_NAME: ${{ vars.WORKSPACE_NAME }}
     steps:
       - name: Checkout Actions
         uses: actions/checkout@v4
