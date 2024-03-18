@@ -53,13 +53,13 @@ steps:
     workingDirectory: $(System.DefaultWorkingDirectory)
     scriptLocation: inlineScript
     inlineScript: |
-      KEY_VAULT_NAME = ${{ parameters.KEY_VAULT_NAME }}
+      KEY_VAULT_NAME=${{ parameters.KEY_VAULT_NAME }}
       echo $KEY_VAULT_NAME
 
-      RESOURCE_GROUP_NAME = ${{ parameters.RESOURCE_GROUP_NAME }}
+      RESOURCE_GROUP_NAME=${{ parameters.RESOURCE_GROUP_NAME }}
       echo $RESOURCE_GROUP_NAME
 
-      WORKSPACE_NAME = ${{ parameters.WORKSPACE_NAME }}
+      WORKSPACE_NAME=${{ parameters.WORKSPACE_NAME }}
       echo $WORKSPACE_NAME
 
       echo "assigning permissions to Principal to AzureML workspace.."
