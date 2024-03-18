@@ -43,7 +43,9 @@ jobs:
       - name: Execute Unit Tests
         shell: bash
         run: |
-          pytest tests --junitxml=junit/test-results.xml --cov=. --cov-report=xml
+          echo $PYTHONPATH
+          PYTHONPATH=. pytest tests --junitxml=junit/test-results.xml --cov=. --cov-report=xml
+          echo $PYTHONPATH
           pytest ${{ inputs.use_case_base_path }}/tests --junitxml=junit/test-results.xml --cov=. --cov-report=xml
 
       - name: Publish Unit Test Results
