@@ -34,10 +34,10 @@ parameters:
 stages:
   - template: ../../.azure-pipelines/platform_ci_dev_pipeline.yml
     parameters:
+      RESOURCE_GROUP_NAME: $(rg_name)
+      WORKSPACE_NAME: $(ws_name)
       exec_environment: ${{ parameters.env_name }}
       use_case_base_path: ${{ parameters.use_case_base_path }}
       deployment_type: ${{ lower(parameters.deployment_type) }}
       connection_details: '$(COMMON_DEV_CONNECTIONS)'
       registry_details: '$(DOCKER_IMAGE_REGISTRY)'
-      RESOURCE_GROUP_NAME: $(RESOURCE_GROUP_NAME)
-      WORKSPACE_NAME: $(WORKSPACE_NAME)
