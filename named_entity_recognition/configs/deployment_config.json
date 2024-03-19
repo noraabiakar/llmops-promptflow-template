@@ -31,8 +31,8 @@
             "COMPUTE_NAME": "k8s-compute",
             "DEPLOYMENT_VM_SIZE": "",
             "DEPLOYMENT_INSTANCE_COUNT": 1,
-            "CPU_ALLOCATION": "",
-            "MEMORY_ALLOCATION": "",
+            "CPU_ALLOCATION": "0.5",
+            "MEMORY_ALLOCATION": "500Mi",
             "ENVIRONMENT_VARIABLES": {
                 "example-name": "example-value"
             }
