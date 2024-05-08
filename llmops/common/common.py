@@ -16,7 +16,7 @@ def wait_job_finish(job: Run, logger: logging.Logger):
     :type logger: logging.Logger
     :raises Exception: If job not finished after 3 attempts with 5 second wait.
     """
-    max_tries = 3
+    max_tries = 4
     attempt = 0
     while attempt < max_tries:
         logger.info(
